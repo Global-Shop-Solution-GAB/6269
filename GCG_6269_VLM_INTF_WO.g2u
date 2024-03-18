@@ -1,0 +1,221 @@
+﻿Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+Function.Intrinsic.UI.UsePixels ' Allows you to use Pixels instead of Twips throughout
+F.Intrinsic.Control.Try
+'TJS, Feb 2020
+'Vonberg Valve, Inc. - Quote 12580
+'BUSINESS CASE: The customer is using a VLM to manage some of their inventory and would like data pushed from GSS to their VLM software.
+
+'GCG_6269_VLM_INTF_WO.g2u  - SFC > File > Work Orders > New:  At the back end of work order creation, wether it's manual, or AWOG, the script needs to check the sort code for the part being made.  If the sort code is "PROD" we need to write job header data from job_header to orders in VLM.
+
+'Hook: 16800, WO Post-OK, Switches = '2'. Passed Variables: 009000 - WO Number. 009001 - Suffix
+'Hook: 28601, AWOG Pre-Exit. Passed Variable: 009000 - Process Hook
+
+F.Intrinsic.Control.SelectCase(V.Caller.Hook)
+	F.Intrinsic.Control.Case(16800)
+		F.Intrinsic.Control.If(V.Caller.Switches,=,"2")
+			F.Intrinsic.Control.CallSub(SQLEXP)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Case(28601)
+		F.Intrinsic.Control.CallSub(AWOG)
+F.Intrinsic.Control.EndSelect
+	
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(Error,"SubRoutine",V.Ambient.CurrentSubroutine,"eNumber",V.Ambient.ErrorNumber,"eDescription",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.SQLEXP.Start
+F.Intrinsic.Control.Try
+V.Local.sTemp.Declare
+V.Local.sServIP.Declare
+V.Local.sDB.Declare
+V.Local.sUID.Declare
+V.Local.sPWD.Declare
+V.Local.sConS.Declare
+V.Local.sSQL.Declare
+V.Local.sOrdLinesTable.Declare
+V.Local.iCnt.Declare
+V.Local.baValue.Declare(ByteArray)
+
+'Collecting SQL Server Express connection settings
+F.Intrinsic.Control.If(V.DataTable.dtSettings.Exists)
+	F.Data.Datatable.Close("dtSettings")
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.If(V.DataTable.dtWO.Exists)
+	F.Data.Datatable.Close("dtWO")
+F.Intrinsic.Control.EndIf
+
+F.ODBC.Connection!conts.OpenCompanyConnection
+F.Data.Datatable.CreateFromSQL("dtSettings","conts","Select * from GCG_6269_VLM_INTF_MX")
+
+F.Intrinsic.String.Build("Select RTRIM(A.JOB)+RTRIM(A.SUFFIX) as JOBSUFFIX,A.DESCRIPTION as HEAD_DESC,Left(B.PART,17) as PART,B.SEQ,B.DESCRIPTION as LINE_DESC,B.HOURS_ESTIMATED from V_JOB_HEADER A left join V_JOB_OPERATIONS B on A.JOB = B.JOB and A.SUFFIX = B.SUFFIX left join V_INVENTORY_MSTR C on A.PART = C.PART and A.LOCATION = C.LOCATION where C.CODE_SORT = 'PROD' and RTRIM(A.JOB) = '{0}' and RTRIM(A.SUFFIX) = '{1}' and B.LMO = 'M' and Left(B.SEQ,2) <> '99';",V.Passed.009000,V.Passed.009001,V.Local.sSQL)
+
+F.Data.Datatable.CreateFromSQL("dtWO","conts",V.Local.sSQL)
+F.ODBC.Connection!conts.Close
+
+F.Intrinsic.Control.If(V.DataTable.dtWO.RowCount,=,0)
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.If(V.DataTable.dtSettings.RowCount,=,0)
+	F.Intrinsic.UI.Msgbox("No VLM connection settings saved. Jobs not sent to VLM","Error")
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).SERVER_IP!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+V.Local.sServIP.Set(v.Local.sTemp)
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).DB_NAME!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+V.Local.sDB.Set(v.Local.sTemp)
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).USERID!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+V.Local.sUID.Set(v.Local.sTemp)
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).PWD!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+V.Local.sPWD.Set(v.Local.sTemp)
+
+F.Data.Datatable.Close("dtSettings")
+
+'Open connection to SQLServer Express DB
+F.Intrinsic.String.Build("Driver={SQL Server};Server={0}\SQLEXPRESS; Database={1};Uid={2};Pwd={3};",V.Local.sServIP.Trim,V.Local.sDB.Trim,V.Local.sUID.Trim,V.Local.sPWD.Trim,V.Local.sConS)
+
+F.ODBC.Connection!conSXP.OpenConnection(V.Local.sConS)
+	F.Intrinsic.String.Build("Insert into {0}.dbo.IMP_ORDINI (ORD_ORDINE,ORD_DES,ORD_TIPOOP) values ('{1}','{2}','P')",V.Local.sDB,V.DataTable.dtWO(0).JOBSUFFIX!FieldValTrim,V.DataTable.dtWO(0).HEAD_DESC!FieldValTrim,V.Local.sSQL)
+	F.ODBC.Connection!conSXP.Execute(V.Local.sSQL)
+	
+	F.Intrinsic.String.Build("{0}.dbo.IMP_ORDINI_RIGHE",V.Local.sDB,V.Local.sOrdLinesTable)
+	
+	F.Data.Datatable.SaveToDB("dtWO","conSXP",V.Local.sOrdLinesTable,"RIG_ORDINE*!*RIG_ARTICOLO",128,"JOBSUFFIX@!@RIG_ORDINE*!*PART@!@RIG_ARTICOLO*!*SEQ@!@RIG_REQ_NOTE*!*LINE_DESC@!@RIG_HOSTINF*!*HOURS_ESTIMATED@!@RIG_QTAR")
+F.ODBC.Connection!conSXP.Close
+
+F.Data.Datatable.Close("dtWO")
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(Error,"SubRoutine",V.Ambient.CurrentSubroutine,"eNumber",V.Ambient.ErrorNumber,"eDescription",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.SQLEXP.End
+
+Program.Sub.AWOG.Start
+F.Intrinsic.Control.Try
+V.Local.sAWOG.Declare
+V.Local.sPath.Declare
+V.Local.sWO.Declare
+V.Local.sSuff.Declare
+V.Local.iCnt.Declare
+V.Local.sTemp.Declare
+V.Local.sServIP.Declare
+V.Local.sDB.Declare
+V.Local.sUID.Declare
+V.Local.sPWD.Declare
+V.Local.baValue.Declare(ByteArray)
+V.Local.sSQL.Declare
+
+V.Local.sPath.Set(V.Passed.009000.Trim)
+
+F.Intrinsic.File.File2String(V.Local.sPath,V.Local.sAWOG)
+
+F.Intrinsic.String.Replace(V.Local.sAWOG,V.Ambient.Tab,"",V.Local.sAWOG)
+
+F.Intrinsic.String.StripExtraSpaces(V.Local.sAWOG,V.Local.sAWOG)
+
+F.Intrinsic.Control.If(V.DataTable.dtAWOG.Exists)
+	F.Data.Datatable.Close("dtAWOG")
+F.Intrinsic.Control.EndIf
+
+F.Data.Datatable.CreateFromString("dtAWOG",V.Local.sAWOG,"PART*!*WO","String*!*String"," ",V.Ambient.NewLine)
+
+F.Intrinsic.Control.If(V.DataTable.dtSettings.Exists)
+	F.Data.Datatable.Close("dtSettings")
+F.Intrinsic.Control.EndIf
+
+F.ODBC.Connection!conts.OpenCompanyConnection
+F.Data.Datatable.CreateFromSQL("dtSettings","conts","Select * from GCG_6269_VLM_INTF_MX")
+
+F.Intrinsic.Control.If(V.DataTable.dtSettings.RowCount,=,0)
+	F.Intrinsic.UI.Msgbox("No connection settings saved. Jobs not sent to VLM.","Error")
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).SERVER_IP!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+V.Local.sServIP.Set(v.Local.sTemp)
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).DB_NAME!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+V.Local.sDB.Set(v.Local.sTemp)
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).USERID!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+V.Local.sUID.Set(v.Local.sTemp)
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).PWD!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+V.Local.sPWD.Set(v.Local.sTemp)
+
+F.Data.Datatable.Close("dtSettings")
+
+F.Intrinsic.Control.For(V.Local.iCnt,0,V.DataTable.dtAWOG.RowCount--,1)
+	F.Intrinsic.String.Left(V.DataTable.dtAWOG(V.Local.iCnt).WO!FieldValTrim,6,V.Local.sWO)
+	F.Intrinsic.String.Right(V.DataTable.dtAWOG(V.Local.iCnt).WO!FieldValTrim,3,V.Local.sSuff)
+		
+	F.Intrinsic.String.Build("Select RTRIM(A.JOB)+RTRIM(A.SUFFIX) as JOBSUFFIX,A.DESCRIPTION as HEAD_DESC,B.PART,B.SEQ,B.DESCRIPTION as LINE_DESC,B.HOURS_ESTIMATED from V_JOB_HEADER A left join V_JOB_OPERATIONS B on A.JOB = B.JOB and A.SUFFIX = B.SUFFIX where A.CODE_SORT = 'PROD' and RTRIM(A.JOB) = '{0}' and RTRIM(A.SUFFIX) = '{1}' and B.LMO = 'M' and Left(B.SEQ,2) <> '99';",V.Local.sWO,V.Local.sSuff,V.Local.sSQL)
+
+	F.Data.Datatable.CreateFromSQL("dtWO","conts",V.Local.sSQL)
+	
+	F.Intrinsic.Control.If(V.DataTable.dtWO.RowCount,>,0)
+		F.ODBC.Connection!conSXP.OpenConnection(V.Local.sConS)
+		F.Intrinsic.String.Build("Insert into {0}.dbo.IMP_ORDINI (ORD_ORDINE,ORD_DES,ORD_TIPOOP) values ('{1}','{2}','P')",V.Local.sDB,V.DataTable.dtWO(0).JOBSUFFIX!FieldValTrim,V.DataTable.dtWO(0).HEAD_DESC!FieldValTrim,V.Local.sSQL)
+		F.ODBC.Connection!conSXP.Execute(V.Local.sSQL)
+	
+		F.Intrinsic.String.Build("{0}.dbo.IMP_ORDINI_RIGHE",V.Local.sDB,V.Local.sOrdLinesTable)
+	
+		F.Data.Datatable.SaveToDB("dtWO","conSXP",V.Local.sOrdLinesTable,"RIG_ORDINE*!*RIG_ARTICOLO",128,"JOBSUFFIX@!@RIG_ORDINE*!*PART@!@RIG_ARTICOLO*!*SEQ@!@RIG_SUB1*!*LINE_DESC@!@RIG_HOSTINF*!*HOURS_ESTIMATED@!@RIG_QTAR")
+		
+		F.ODBC.Connection!conSXP.Close	
+	F.Intrinsic.Control.EndIf
+	
+	F.Data.Datatable.Close("dtWO")
+
+F.Intrinsic.Control.Next(V.Local.iCnt)
+
+F.Data.Datatable.Close("dtAWOG")
+
+F.ODBC.Connection!conts.Close
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(Error,"SubRoutine",V.Ambient.CurrentSubroutine,"eNumber",V.Ambient.ErrorNumber,"eDescription",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.AWOG.End
+
+Program.Sub.Error.Start
+V.Local.sError.Declare
+V.Local.iRet.Declare
+V.Local.sSep.Declare
+
+F.Intrinsic.String.Build("-------------------------------------------------------------------------------------",,V.Local.sSep)
+F.Intrinsic.String.Build("({5}-{6}){0}{7}{0}Project: {4}{0}{7}{0}Sub: {1}{0}Error: {2}, {3}", V.Ambient.NewLine, V.Args.SubRoutine, V.Args.eNumber, V.Args.eDescription,V.Caller.ScriptFile,V.Ambient.Date, V.Ambient.Time,V.Local.sSep,V.Local.sError)
+F.Intrinsic.UI.Msgbox(V.Local.sError,"Error",V.Local.iRet)
+Program.Sub.Error.End
+
+Program.Sub.Comments.Start
+${$5$}$3.0.0.0$}$1
+${$6$}$tsmith$}$20210212111107063$}$xqPbj9atw05FglvzeFsZ9cqXP+qvG6tXNrJkb4Frbef5apq/TBGxgpim1PTPllwbf6E80MUxz64=
+Program.Sub.Comments.End
