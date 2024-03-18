@@ -1,0 +1,102 @@
+﻿Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+Function.Intrinsic.UI.UsePixels ' Allows you to use Pixels instead of Twips throughout
+F.Intrinsic.Control.Try
+'TJS, Feb 2020
+'Vonberg Valve, Inc. - Quote 12580
+'BUSINESS CASE: The customer is using a VLM to manage some of their inventory and would like data pushed from GSS to their VLM software.
+
+'GCG_6269_VLM_INTF_INV.g2u  - Inventory Parts New:  when a part is saved on the inventory master screen, the script needs to check the product line first.  If the product line is between 10 and 90, write the part number to the SQL database.
+
+'Hook 10185, Switch "N"
+'Passed Variables: 000011 - Product Line. 000007 - Part Number.  000012 - Description. 000014 - Inventory Unit of Measure 
+'Customer does not use the Rev in their VMS so it is ignored here.
+
+F.Intrinsic.Control.If(V.Caller.Hook,=,10185)
+	F.Intrinsic.Control.If(V.Caller.Switches,=,"N","OR",V.Caller.Switches,=,"C")
+		F.Intrinsic.Control.If(V.Passed.000011.Long,>=,10,"AND",V.Passed.000011.Long,<=,90)
+			F.Intrinsic.Control.CallSub(SQLEXP)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf	
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(Error,"SubRoutine",V.Ambient.CurrentSubroutine,"eNumber",V.Ambient.ErrorNumber,"eDescription",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.SQLEXP.Start
+F.Intrinsic.Control.Try
+V.Local.sTemp.Declare
+V.Local.sServIP.Declare
+V.Local.sDB.Declare
+V.Local.sUID.Declare
+V.Local.sPWD.Declare
+V.Local.sConS.Declare
+V.Local.sSQL.Declare
+V.Local.baValue.Declare(ByteArray)
+
+'Collecting SQL Server Express connection settings
+F.ODBC.Connection!conts.OpenCompanyConnection
+F.Data.Datatable.CreateFromSQL("dtSettings","conts","Select * from GCG_6269_VLM_INTF_MX")
+F.ODBC.Connection!conts.Close
+
+F.Intrinsic.Control.If(V.DataTable.dtSettings.RowCount,=,0)
+	F.Intrinsic.UI.Msgbox("No VLMM connection settings saved.","Error")
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).SERVER_IP!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+V.Local.sServIP.Set(v.Local.sTemp)
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).DB_NAME!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+V.Local.sDB.Set(v.Local.sTemp)
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).USERID!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+V.Local.sUID.Set(v.Local.sTemp)
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).PWD!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+V.Local.sPWD.Set(v.Local.sTemp)
+
+F.Data.Datatable.Close("dtSettings")
+
+'Open connection to SQLServer Express DB
+F.Intrinsic.String.Build("Driver={ODBC Driver 13 for SQL Server};Server={0}\SQLEXPRESS; Database={1};Uid={2};Pwd={3};",V.Local.sServIP.Trim,V.Local.sDB.Trim,V.Local.sUID.Trim,V.Local.sPWD.Trim,V.Local.sConS)
+
+F.Intrinsic.String.Build("Insert into {0}.dbo.IMP_ARTICOLI (ART_ARTICOLO,ART_DES,ART_UMI) values ('{1}','{2}','{3}')",V.Local.sDB,V.Passed.000007.Trim,V.Passed.000012.Trim,V.Passed.000014.Trim,V.Local.sSQL)
+
+F.ODBC.Connection!conSXP.OpenConnection(V.Local.sConS)
+	F.ODBC.Connection!conSXP.Execute(V.Local.sSQL)
+F.ODBC.Connection!conSXP.Close
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(Error,"SubRoutine",V.Ambient.CurrentSubroutine,"eNumber",V.Ambient.ErrorNumber,"eDescription",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.SQLEXP.End
+
+Program.Sub.Error.Start
+V.Local.sError.Declare
+V.Local.iRet.Declare
+V.Local.sSep.Declare
+
+F.Intrinsic.String.Build("-------------------------------------------------------------------------------------",,V.Local.sSep)
+F.Intrinsic.String.Build("({5}-{6}){0}{7}{0}Project: {4}{0}{7}{0}Sub: {1}{0}Error: {2}, {3}", V.Ambient.NewLine, V.Args.SubRoutine, V.Args.eNumber, V.Args.eDescription,V.Caller.ScriptFile,V.Ambient.Date, V.Ambient.Time,V.Local.sSep,V.Local.sError)
+F.Intrinsic.UI.Msgbox(V.Local.sError,"Error",V.Local.iRet)
+Program.Sub.Error.End
+
+Program.Sub.Comments.Start
+${$5$}$3.0.0.0$}$1
+${$6$}$tsmith$}$20210212093422018$}$xqPbj9atw05FglvzeFsZ9cqXP+qvG6tXNrJkb4Frbec033ZkfDafVdGgwCLb5tl2J1qnJVZLbTU=
+Program.Sub.Comments.End
