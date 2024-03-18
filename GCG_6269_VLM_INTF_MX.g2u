@@ -1,0 +1,197 @@
+﻿Program.Sub.ScreenSU.Start
+Gui.fmVLM_Mx..Create(BaseForm)
+Gui.fmVLM_Mx..Caption("VLM Connection Maintenance")
+Gui.fmVLM_Mx..Size(592,129)
+Gui.fmVLM_Mx..MinX(0)
+Gui.fmVLM_Mx..MinY(0)
+Gui.fmVLM_Mx..Position(0,0)
+Gui.fmVLM_Mx..BackColor(-2147483633)
+Gui.fmVLM_Mx..MousePointer(0)
+Gui.fmVLM_Mx..Event(UnLoad,fmVLM_Mx_UnLoad)
+Gui.fmVLM_Mx..AlwaysOnTop(False)
+Gui.fmVLM_Mx..FontName("Tahoma")
+Gui.fmVLM_Mx..FontSize(8.25)
+Gui.fmVLM_Mx..ControlBox(True)
+Gui.fmVLM_Mx..MaxButton(True)
+Gui.fmVLM_Mx..MinButton(True)
+Gui.fmVLM_Mx..Moveable(True)
+Gui.fmVLM_Mx..Sizeable(True)
+Gui.fmVLM_Mx..ShowInTaskBar(True)
+Gui.fmVLM_Mx..TitleBar(True)
+Gui.fmVLM_Mx.lblSrvrIP.Create(Label,"Server IP Address",True,89,14,0,20,14,True,0,"Arial",8,-2147483633,0,0)
+Gui.fmVLM_Mx.lblSrvrIP.BorderStyle(0)
+Gui.fmVLM_Mx.txtSrvrIP.Create(TextBox,"",True,134,20,0,20,29,True,0,"Arial",8,-2147483643,1)
+Gui.fmVLM_Mx.lblDB.Create(Label,"Database",True,46,14,0,160,14,True,0,"Arial",8,-2147483633,0,0)
+Gui.fmVLM_Mx.lblDB.BorderStyle(0)
+Gui.fmVLM_Mx.txtDB.Create(TextBox,"",True,134,20,0,160,29,True,0,"Arial",8,-2147483643,1)
+Gui.fmVLM_Mx.lblUID.Create(Label,"User ID",True,35,14,0,300,14,True,0,"Arial",8,-2147483633,0,0)
+Gui.fmVLM_Mx.lblUID.BorderStyle(0)
+Gui.fmVLM_Mx.lblPWD.Create(Label,"Password",True,50,14,0,441,14,True,0,"Arial",8,-2147483633,0,0)
+Gui.fmVLM_Mx.lblPWD.BorderStyle(0)
+Gui.fmVLM_Mx.txtUID.Create(TextBox,"",True,134,20,0,300,29,True,0,"Arial",8,-2147483643,1)
+Gui.fmVLM_Mx.txtPWD.Create(TextBox,"",True,134,20,0,441,29,True,0,"Arial",8,-2147483643,1)
+Gui.fmVLM_Mx.cmdSave.Create(Button)
+Gui.fmVLM_Mx.cmdSave.Size(100,25)
+Gui.fmVLM_Mx.cmdSave.Position(475,57)
+Gui.fmVLM_Mx.cmdSave.Caption("Save")
+Gui.fmVLM_Mx.cmdSave.Event(Click,cmdSave_Click)
+Gui.fmVLM_Mx.cmdSave.Enabled(True)
+Gui.fmVLM_Mx.cmdSave.Visible(True)
+Gui.fmVLM_Mx.cmdSave.Zorder(0)
+Gui.fmVLM_Mx.cmdSave.FontName("Tahoma")
+Gui.fmVLM_Mx.cmdSave.FontSize(8.25)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+Function.Intrinsic.UI.UsePixels ' Allows you to use Pixels instead of Twips throughout
+F.Intrinsic.Control.Try
+'TJS, Feb 2020
+'Vonberg Valve, Inc. - Quote 12580
+'BUSINESS CASE: The customer is using a VLM to manage some of their inventory and would like data pushed from GSS to their VLM software.
+
+'GCG_6269_VLM_INTF_MX.g2u is to establish a maintenance program where the user can modify the SQL Server Express connection information
+
+F.Intrinsic.Control.CallSub(ConData)
+
+Gui.fmVLM_Mx..Show
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(Error,"SubRoutine",V.Ambient.CurrentSubroutine,"eNumber",V.Ambient.ErrorNumber,"eDescription",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.ConData.Start
+F.Intrinsic.Control.Try
+V.Local.sTemp.Declare
+V.Local.baValue.Declare(ByteArray)
+
+F.ODBC.Connection!conts.OpenCompanyConnection
+
+F.Data.Datatable.CreateFromSQL("dtSettings","conts","Select * from GCG_6269_VLM_INTF_MX")
+
+F.ODBC.Connection!conts.Close
+
+F.Intrinsic.Control.If(V.DataTable.dtSettings.RowCount,=,0)
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.EndIf
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).SERVER_IP!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+Gui.fmVLM_Mx.txtSrvrIP.Text(v.Local.sTemp)
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).DB_NAME!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+Gui.fmVLM_Mx.txtDB.Text(v.Local.sTemp)
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).USERID!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+Gui.fmVLM_Mx.txtUID.Text(v.Local.sTemp)
+
+V.Local.sTemp.Set(V.DataTable.dtSettings(0).PWD!FieldValTrim)
+F.Intrinsic.String.ConvertString2BA(V.Local.sTemp,V.Local.baValue)
+F.Global.Encryption.Decrypt(V.Local.baValue,v.Local.sTemp)
+Gui.fmVLM_Mx.txtPWD.Text(v.Local.sTemp)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(Error,"SubRoutine",V.Ambient.CurrentSubroutine,"eNumber",V.Ambient.ErrorNumber,"eDescription",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.ConData.End
+
+Program.Sub.cmdSave_Click.Start
+F.Intrinsic.Control.Try
+V.Local.sIP.Declare
+V.Local.sDB.Declare
+V.Local.sUID.Declare
+V.Local.sPW.Declare
+V.Local.sSQL.Declare
+V.Local.sTemp.Declare
+V.Local.iSize.Declare
+V.Local.baValue.Declare(ByteArray)
+
+V.Local.sTemp.Set(V.Screen.fmVLM_Mx!txtSrvrIP.Text.Trim)
+F.Intrinsic.Control.If(V.Local.sTemp.Trim,<>,"")
+	F.Intrinsic.Math.Add(V.Local.sTemp.Length,1,V.Local.iSize)
+	F.Intrinsic.String.RPad(V.Local.sTemp.Trim," ",V.Local.iSize,V.Local.sTemp)
+	F.Global.Encryption.Encrypt(V.Local.sTemp,V.Local.baValue)
+	F.Intrinsic.String.ConvertBA2String(V.Local.baValue,V.Local.sTemp)
+F.Intrinsic.Control.EndIf
+V.Local.sIP.Set(V.Local.sTemp.Trim)
+
+V.Local.sTemp.Set(V.Screen.fmVLM_Mx!txtDB.Text.Trim)
+F.Intrinsic.Control.If(V.Local.sTemp.Trim,<>,"")
+	F.Intrinsic.Math.Add(V.Local.sTemp.Length,1,V.Local.iSize)
+	F.Intrinsic.String.RPad(V.Local.sTemp.Trim," ",V.Local.iSize,V.Local.sTemp)
+	F.Global.Encryption.Encrypt(V.Local.sTemp,V.Local.baValue)
+	F.Intrinsic.String.ConvertBA2String(V.Local.baValue,V.Local.sTemp)
+F.Intrinsic.Control.EndIf
+V.Local.sDB.Set(V.Local.sTemp.Trim)
+
+V.Local.sTemp.Set(V.Screen.fmVLM_Mx!txtUID.Text.Trim)
+F.Intrinsic.Control.If(V.Local.sTemp.Trim,<>,"")
+	F.Intrinsic.Math.Add(V.Local.sTemp.Length,1,V.Local.iSize)
+	F.Intrinsic.String.RPad(V.Local.sTemp.Trim," ",V.Local.iSize,V.Local.sTemp)
+	F.Global.Encryption.Encrypt(V.Local.sTemp,V.Local.baValue)
+	F.Intrinsic.String.ConvertBA2String(V.Local.baValue,V.Local.sTemp)
+F.Intrinsic.Control.EndIf
+V.Local.sUID.Set(V.Local.sTemp.Trim)
+
+V.Local.sTemp.Set(V.Screen.fmVLM_Mx!txtPWD.Text.Trim)
+F.Intrinsic.Control.If(V.Local.sTemp.Trim,<>,"")
+	F.Intrinsic.Math.Add(V.Local.sTemp.Length,1,V.Local.iSize)
+	F.Intrinsic.String.RPad(V.Local.sTemp.Trim," ",V.Local.iSize,V.Local.sTemp)
+	F.Global.Encryption.Encrypt(V.Local.sTemp,V.Local.baValue)
+	F.Intrinsic.String.ConvertBA2String(V.Local.baValue,V.Local.sTemp)
+F.Intrinsic.Control.EndIf
+V.Local.sPW.Set(V.Local.sTemp.Trim)
+
+F.ODBC.Connection!conts.OpenCompanyConnection
+
+F.Data.Datatable.CreateFromSQL("dtSettings","conts","select * from GCG_6269_VLM_INTF_MX")
+
+F.Intrinsic.Control.If(V.DataTable.dtSettings.RowCount,=,0)
+	F.Intrinsic.String.Build("Insert into GCG_6269_VLM_INTF_MX (SERVER_IP,DB_NAME,USERID,PWD) values ('{0}','{1}','{2}','{3}')",V.Local.sIP,V.Local.sDB,V.Local.sUID,V.Local.sPW,V.Local.sSQL)
+	F.ODBC.Connection!conts.Execute(V.Local.sSQL)
+F.Intrinsic.Control.Else
+	F.ODBC.Connection!conts.Execute("Delete GCG_6269_VLM_INTF_MX")
+	F.Intrinsic.String.Build("Insert into GCG_6269_VLM_INTF_MX (SERVER_IP,DB_NAME,USERID,PWD) values ('{0}','{1}','{2}','{3}')",V.Local.sIP,V.Local.sDB,V.Local.sUID,V.Local.sPW,V.Local.sSQL)
+	F.ODBC.Connection!conts.Execute(V.Local.sSQL)
+F.Intrinsic.Control.EndIf
+
+F.Data.Datatable.Close("dtSettings")
+
+F.ODBC.Connection!conts.Close
+
+Gui.fmVLM_Mx.txtSrvrIP.Text("")
+Gui.fmVLM_Mx.txtDB.Text("")
+Gui.fmVLM_Mx.txtUID.Text("")
+Gui.fmVLM_Mx.txtPWD.Text("")
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(Error,"SubRoutine",V.Ambient.CurrentSubroutine,"eNumber",V.Ambient.ErrorNumber,"eDescription",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdSave_Click.End
+
+Program.Sub.fmVLM_Mx_UnLoad.Start
+F.Intrinsic.Control.End
+Program.Sub.fmVLM_Mx_UnLoad.End
+
+Program.Sub.Error.Start
+V.Local.sError.Declare
+V.Local.iRet.Declare
+V.Local.sSep.Declare
+
+F.Intrinsic.String.Build("-------------------------------------------------------------------------------------",,V.Local.sSep)
+F.Intrinsic.String.Build("({5}-{6}){0}{7}{0}Project: {4}{0}{7}{0}Sub: {1}{0}Error: {2}, {3}", V.Ambient.NewLine, V.Args.SubRoutine, V.Args.eNumber, V.Args.eDescription,V.Caller.ScriptFile,V.Ambient.Date, V.Ambient.Time,V.Local.sSep,V.Local.sError)
+F.Intrinsic.UI.Msgbox(V.Local.sError,"Error",V.Local.iRet)
+Program.Sub.Error.End
+
+Program.Sub.Comments.Start
+${$5$}$3.0.0.0$}$1
+${$6$}$tsmith$}$20210208085937842$}$xqPbj9atw05FglvzeFsZ9cqXP+qvG6tXf2VO1b4P/PAwmtmJIsQ8dZ4oDxjnuDRf0pMkZ3InKkA=
+Program.Sub.Comments.End
